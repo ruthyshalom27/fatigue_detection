@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Fatigue Detection System</title>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg:       #050a10;
+      --panel:    #0b1420;
+      --border:   #1a3a5c;
+      --accent:   #00d4ff;
+      --green:    #00ff88;
+      --yellow:   #ffcc00;
+      --red:      #ff3366;
+      --text:     #c8dff0;
+      --dim:      #4a7090;
+      --font-hud: 'Share Tech Mono', monospace;
+      --font-ui:  'Rajdhani', sans-serif;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-ui);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    /* animated scan-line overlay */
+    body::after {
+      content: '';
+      position: fixed; inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 3px,
+        rgba(0,212,255,.018) 3px,
+        rgba(0,212,255,.018) 4px
+      );
+      pointer-events: none;
+      z-index: 999;
+    }
+
+    /* ── HEADER ── */
+    header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 14px 28px;
+      border-bottom: 1px solid var(--border);
+      background: var(--panel);
+    }
+    .logo-icon {
+      width: 36px; height: 36px;
+      border: 2px solid var(--accent);
+      border-radius: 50%;
+      display: grid; place-items: center;
+      font-size: 18px;
+    }
+    header h1 {
+      font-family: var(--font-hud);
+      font-size: 1.05rem;
+      letter-spacing: .12em;
+      color: var(--accent);
+    }
+    header p {
+      font-size: .78rem;
+      color: var(--dim);
+      letter-spacing: .06em;
+    }
+    .header-right {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 18px;
+    }
+    #live-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 8px var(--green);
+      animation: pulse 1.4s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%,100% { opacity: 1; }
+      50%      { opacity: .3; }
+    }
+    #clock {
+      font-family: var(--font-hud);
+      font-size: .85rem;
+      color: var(--dim);
+    }
+
+    /* ── MAIN LAYOUT ── */
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap: 0;
+    }
+
+    /* ── VIDEO PANEL ── */
+    .video-wrap {
+      position: relative;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .cam-frame {
+      position: relative;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+      background: #000;
+    }
+    .cam-frame img {
+      display: block;
+      width: 100%;
+      height: auto;
+      max-height: 520px;
+      object-fit: cover;
+    }
+    /* corner decorators */
+    .cam-frame::before, .cam-frame::after,
+    .cam-frame .corner-bl, .cam-frame .corner-br {
+      content: '';
+      position: absolute;
+      width: 18px; height: 18px;
+      z-index: 2;
+    }
+    .cam-frame::before  { top:    0; left:  0; border-top:    2px solid var(--accent); border-left:  2px solid var(--accent); }
+    .cam-frame::after   { top:    0; right: 0; border-top:    2px solid var(--accent); border-right: 2px solid var(--accent); }
+    .cam-frame .corner-bl { bottom: 0; left:  0; border-bottom: 2px solid var(--accent); border-left:  2px solid var(--accent); }
+    .cam-frame .corner-br { bottom: 0; right: 0; border-bottom: 2px solid var(--accent); border-right: 2px solid var(--accent); }
+
+    /* alert overlay */
+    #alert-overlay {
+      position: absolute; inset: 0;
+      background: rgba(255,51,102,.08);
+      border: 3px solid var(--red);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      animation: flash .5s ease-in-out infinite alternate;
+      z-index: 5;
+      pointer-events: none;
+    }
+    #alert-overlay.visible { display: flex; }
+    @keyframes flash {
+      from { border-color: var(--red);    background: rgba(255,51,102,.08); }
+      to   { border-color: #ff7799;       background: rgba(255,51,102,.18); }
+    }
+    .alert-text {
+      font-family: var(--font-hud);
+      font-size: 2rem;
+      color: var(--red);
+      letter-spacing: .2em;
+      text-shadow: 0 0 18px var(--red);
+    }
+
+    /* scan line moving */
+    .scan-line {
+      position: absolute; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+      opacity: .35;
+      animation: scan 3s linear infinite;
+      pointer-events: none;
+      z-index: 3;
+    }
+    @keyframes scan {
+      from { top: 0; }
+      to   { top: 100%; }
+    }
+
+    /* ── BOTTOM STATUS BAR ── */
+    .status-bar {
+      display: flex;
+      gap: 12px;
+      align-items: stretch;
+    }
+    .status-card {
+      flex: 1;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .status-card .label {
+      font-size: .7rem;
+      letter-spacing: .1em;
+      color: var(--dim);
+      text-transform: uppercase;
+    }
+    .status-card .value {
+      font-family: var(--font-hud);
+      font-size: 1.5rem;
+      color: var(--accent);
+    }
+    .status-card .value.green  { color: var(--green); }
+    .status-card .value.yellow { color: var(--yellow); }
+    .status-card .value.red    { color: var(--red); }
+
+    /* ── SIDEBAR ── */
+    aside {
+      border-left: 1px solid var(--border);
+      background: var(--panel);
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      overflow-y: auto;
+    }
+    .side-section {
+      padding: 18px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    .side-section h2 {
+      font-family: var(--font-hud);
+      font-size: .72rem;
+      letter-spacing: .16em;
+      color: var(--dim);
+      text-transform: uppercase;
+      margin-bottom: 14px;
+    }
+
+    /* Fatigue gauge */
+    .gauge-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+    .gauge-ring {
+      position: relative;
+      width: 140px; height: 140px;
+    }
+    .gauge-ring svg { transform: rotate(-90deg); }
+    .gauge-ring .track { fill: none; stroke: #122; stroke-width: 12; }
+    .gauge-ring .fill  {
+      fill: none; stroke-width: 12;
+      stroke-linecap: round;
+      stroke: var(--green);
+      stroke-dasharray: 376; /* 2π×60 */
+      stroke-dashoffset: 376;
+      transition: stroke-dashoffset .6s ease, stroke .6s ease;
+    }
+    .gauge-center {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+    }
+    .gauge-center .pct {
+      font-family: var(--font-hud);
+      font-size: 2rem;
+      color: var(--accent);
+    }
+    .gauge-center .lbl {
+      font-size: .65rem;
+      color: var(--dim);
+      letter-spacing: .1em;
+    }
+    .gauge-status {
+      font-family: var(--font-hud);
+      font-size: .85rem;
+      letter-spacing: .14em;
+      color: var(--green);
+    }
+
+    /* Metric rows */
+    .metric-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid #0d2035;
+    }
+    .metric-row:last-child { border-bottom: none; }
+    .metric-row .k {
+      font-size: .78rem;
+      color: var(--dim);
+    }
+    .metric-row .v {
+      font-family: var(--font-hud);
+      font-size: .9rem;
+      color: var(--text);
+    }
+
+    /* EAR mini bar */
+    .ear-bar-wrap {
+      margin-top: 4px;
+    }
+    .ear-bar-bg {
+      background: #0d2035;
+      border-radius: 2px;
+      height: 6px;
+      overflow: hidden;
+    }
+    .ear-bar-fill {
+      height: 100%;
+      background: var(--green);
+      border-radius: 2px;
+      transition: width .3s ease, background .3s ease;
+    }
+    .ear-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: .65rem;
+      color: var(--dim);
+      margin-top: 4px;
+    }
+
+    /* Blink history mini-chart */
+    #blink-chart {
+      display: flex;
+      align-items: flex-end;
+      gap: 3px;
+      height: 40px;
+      margin-top: 8px;
+    }
+    .blink-bar {
+      flex: 1;
+      background: var(--accent);
+      border-radius: 1px 1px 0 0;
+      opacity: .6;
+      min-height: 2px;
+      transition: height .3s ease;
+    }
+
+    /* Log */
+    #event-log {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      max-height: 160px;
+      overflow-y: auto;
+    }
+    #event-log::-webkit-scrollbar { width: 4px; }
+    #event-log::-webkit-scrollbar-track { background: transparent; }
+    #event-log::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    .log-entry {
+      font-family: var(--font-hud);
+      font-size: .68rem;
+      color: var(--dim);
+      display: flex;
+      gap: 8px;
+    }
+    .log-entry .ts { color: #2a5070; }
+    .log-entry.warn .msg { color: var(--yellow); }
+    .log-entry.danger .msg { color: var(--red); }
+    .log-entry.ok .msg { color: var(--green); }
+
+    /* Reset button */
+    #btn-reset {
+      width: 100%;
+      padding: 10px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      color: var(--dim);
+      font-family: var(--font-hud);
+      font-size: .75rem;
+      letter-spacing: .12em;
+      cursor: pointer;
+      transition: all .2s ease;
+    }
+    #btn-reset:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: rgba(0,212,255,.06);
+    }
+
+    /* How it works */
+    .info-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .info-item {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }
+    .info-item .dot {
+      width: 6px; height: 6px;
+      background: var(--accent);
+      border-radius: 50%;
+      margin-top: 6px;
+      flex-shrink: 0;
+    }
+    .info-item p {
+      font-size: .78rem;
+      line-height: 1.5;
+      color: var(--dim);
+    }
+    .info-item p strong {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    @media (max-width: 900px) {
+      main { grid-template-columns: 1fr; }
+      aside { border-left: none; border-top: 1px solid var(--border); }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo-icon">👁</div>
+  <div>
+    <h1>FATIGUE DETECTION SYSTEM</h1>
+    <p>Eye Aspect Ratio · Face Mesh · Real-Time Analysis</p>
+  </div>
+  <div class="header-right">
+    <div id="live-dot"></div>
+    <span id="clock" style="font-size:.8rem;color:var(--dim);">--:--:--</span>
+  </div>
+</header>
+
+<main>
+  <!-- VIDEO AREA -->
+  <div class="video-wrap">
+    <div class="cam-frame">
+      <img src="/video" alt="Live camera feed" id="video-feed"/>
+      <span class="corner-bl"></span>
+      <span class="corner-br"></span>
+      <div class="scan-line"></div>
+      <div id="alert-overlay">
+        <span class="alert-text">⚠ DROWSINESS DETECTED</span>
+      </div>
+    </div>
+
+    <!-- bottom quick stats -->
+    <div class="status-bar">
+      <div class="status-card">
+        <span class="label">Status</span>
+        <span class="value green" id="s-status">Awake</span>
+      </div>
+      <div class="status-card">
+        <span class="label">EAR Value</span>
+        <span class="value" id="s-ear">0.000</span>
+      </div>
+      <div class="status-card">
+        <span class="label">Blinks/min</span>
+        <span class="value" id="s-bpm">0</span>
+      </div>
+      <div class="status-card">
+        <span class="label">Total Blinks</span>
+        <span class="value" id="s-blinks">0</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- SIDEBAR -->
+  <aside>
+
+    <!-- Fatigue Score Gauge -->
+    <div class="side-section">
+      <h2>Fatigue Score</h2>
+      <div class="gauge-wrap">
+        <div class="gauge-ring">
+          <svg viewBox="0 0 140 140" width="140" height="140">
+            <circle class="track" cx="70" cy="70" r="60"/>
+            <circle class="fill"  cx="70" cy="70" r="60" id="gauge-fill"/>
+          </svg>
+          <div class="gauge-center">
+            <span class="pct" id="gauge-pct">0%</span>
+            <span class="lbl">FATIGUE</span>
+          </div>
+        </div>
+        <span class="gauge-status" id="gauge-status-text">● AWAKE</span>
+      </div>
+    </div>
+
+    <!-- Eye Metrics -->
+    <div class="side-section">
+      <h2>Eye Metrics</h2>
+      <div class="metric-row">
+        <span class="k">Face Detected</span>
+        <span class="v" id="m-face">—</span>
+      </div>
+      <div class="metric-row">
+        <span class="k">Closed Frames</span>
+        <span class="v" id="m-cf">0</span>
+      </div>
+      <div class="metric-row">
+        <span class="k">EAR Threshold</span>
+        <span class="v">0.250</span>
+      </div>
+      <div class="ear-bar-wrap">
+        <div class="ear-bar-bg">
+          <div class="ear-bar-fill" id="ear-bar" style="width:0%"></div>
+        </div>
+        <div class="ear-label">
+          <span>0.0 (closed)</span>
+          <span id="ear-bar-val">0.000</span>
+          <span>0.45+ (open)</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Blink History -->
+    <div class="side-section">
+      <h2>Blink History (last 20s)</h2>
+      <div id="blink-chart"></div>
+    </div>
+
+    <!-- Event Log -->
+    <div class="side-section">
+      <h2>Event Log</h2>
+      <div id="event-log"></div>
+    </div>
+
+    <!-- Reset -->
+    <div class="side-section">
+      <button id="btn-reset">⟳ &nbsp;RESET SESSION</button>
+    </div>
+
+    <!-- How it works -->
+    <div class="side-section">
+      <h2>How It Works</h2>
+      <div class="info-list">
+        <div class="info-item">
+          <span class="dot"></span>
+          <p><strong>EAR (Eye Aspect Ratio)</strong> — ratio of eye height to width. Drops when eyes close.</p>
+        </div>
+        <div class="info-item">
+          <span class="dot"></span>
+          <p><strong>EAR &lt; 0.25</strong> for 20+ frames signals prolonged closure → drowsiness.</p>
+        </div>
+        <div class="info-item">
+          <span class="dot"></span>
+          <p><strong>Blink rate &lt; 15/min</strong> after 10 s also raises the fatigue score.</p>
+        </div>
+        <div class="info-item">
+          <span class="dot"></span>
+          <p><strong>MediaPipe</strong> provides 468 face landmarks in real-time for accuracy.</p>
+        </div>
+      </div>
+    </div>
+
+  </aside>
+</main>
+
+<script>
+  // Clock
+  const clockEl = document.getElementById('clock');
+  setInterval(() => {
+    clockEl.textContent = new Date().toLocaleTimeString('en-GB');
+  }, 1000);
+
+  // Blink history: rolling 20 buckets
+  const BUCKETS = 20;
+  let blinkHistory = new Array(BUCKETS).fill(0);
+  let prevBlinks   = 0;
+  let lastLogStatus = '';
+
+  // Render mini blink bars
+  const blinkChart = document.getElementById('blink-chart');
+  for (let i = 0; i < BUCKETS; i++) {
+    const b = document.createElement('div');
+    b.className = 'blink-bar';
+    b.style.height = '2px';
+    blinkChart.appendChild(b);
+  }
+
+  function updateBlinkChart() {
+    const bars = blinkChart.querySelectorAll('.blink-bar');
+    const max  = Math.max(...blinkHistory, 1);
+    bars.forEach((b, i) => {
+      const h = Math.max(2, (blinkHistory[i] / max) * 38);
+      b.style.height = h + 'px';
+    });
+  }
+
+  // Gauge arc math: circumference = 2π×60 ≈ 376.99
+  const CIRC = 2 * Math.PI * 60;
+  const gaugeArc = document.getElementById('gauge-fill');
+
+  function setGauge(pct) {
+    const offset = CIRC - (pct / 100) * CIRC;
+    gaugeArc.style.strokeDashoffset = offset;
+    if (pct >= 70)      gaugeArc.style.stroke = 'var(--red)';
+    else if (pct >= 40) gaugeArc.style.stroke = 'var(--yellow)';
+    else                gaugeArc.style.stroke = 'var(--green)';
+  }
+
+  // Log helper
+  function addLog(msg, type = '') {
+    const log = document.getElementById('event-log');
+    const ts  = new Date().toLocaleTimeString('en-GB');
+    const div = document.createElement('div');
+    div.className = `log-entry ${type}`;
+    div.innerHTML = `<span class="ts">${ts}</span><span class="msg">${msg}</span>`;
+    log.prepend(div);
+    while (log.children.length > 40) log.removeChild(log.lastChild);
+  }
+
+  // Poll stats every 500ms
+  let bucketTimer = 0;
+  setInterval(async () => {
+    try {
+      const res  = await fetch('/stats');
+      const data = await res.json();
+
+      // Status card
+      const statusEl  = document.getElementById('s-status');
+      const statusStr = data.status || 'Awake';
+      statusEl.textContent = statusStr;
+      statusEl.className   = 'value ' +
+        (statusStr === 'DROWSY' ? 'red' : statusStr === 'Tired' ? 'yellow' : 'green');
+
+      document.getElementById('s-ear').textContent     = (data.ear || 0).toFixed(3);
+      document.getElementById('s-bpm').textContent     = data.blink_rate || 0;
+      document.getElementById('s-blinks').textContent  = data.blink_count || 0;
+
+      // Gauge
+      const fs = data.fatigue_score || 0;
+      document.getElementById('gauge-pct').textContent = fs + '%';
+      setGauge(fs);
+      const gst = document.getElementById('gauge-status-text');
+      if (statusStr === 'DROWSY') { gst.textContent = '● DROWSY'; gst.style.color = 'var(--red)'; }
+      else if (statusStr === 'Tired') { gst.textContent = '◑ TIRED'; gst.style.color = 'var(--yellow)'; }
+      else { gst.textContent = '● AWAKE'; gst.style.color = 'var(--green)'; }
+
+      // Alert overlay
+      const overlay = document.getElementById('alert-overlay');
+      data.fatigue_alert ? overlay.classList.add('visible') : overlay.classList.remove('visible');
+
+      // Face detection
+      document.getElementById('m-face').textContent = data.face_detected ? 'Yes ✓' : 'No —';
+      document.getElementById('m-cf').textContent   = data.closed_frames || 0;
+
+      // EAR bar
+      const earVal = data.ear || 0;
+      const earPct = Math.min(earVal / 0.45 * 100, 100).toFixed(1);
+      const earBar = document.getElementById('ear-bar');
+      earBar.style.width = earPct + '%';
+      earBar.style.background = earVal < 0.25 ? 'var(--red)' : earVal < 0.32 ? 'var(--yellow)' : 'var(--green)';
+      document.getElementById('ear-bar-val').textContent = earVal.toFixed(3);
+
+      // Blink history bucket (updates every 1s)
+      bucketTimer++;
+      if (bucketTimer >= 2) {
+        bucketTimer = 0;
+        const newBlinks = (data.blink_count || 0) - prevBlinks;
+        prevBlinks = data.blink_count || 0;
+        blinkHistory.shift();
+        blinkHistory.push(newBlinks);
+        updateBlinkChart();
+      }
+
+      // Event log
+      if (statusStr !== lastLogStatus) {
+        const type = statusStr === 'DROWSY' ? 'danger' : statusStr === 'Tired' ? 'warn' : 'ok';
+        addLog(`Status changed → ${statusStr}`, type);
+        lastLogStatus = statusStr;
+      }
+
+    } catch (e) { /* server not ready yet */ }
+  }, 500);
+
+  // Reset button
+  document.getElementById('btn-reset').addEventListener('click', async () => {
+    await fetch('/reset', { method: 'POST' });
+    prevBlinks = 0;
+    blinkHistory = new Array(BUCKETS).fill(0);
+    updateBlinkChart();
+    addLog('Session reset by user', 'ok');
+  });
+
+  // Init log
+  addLog('System started', 'ok');
+</script>
+</body>
+</html>
