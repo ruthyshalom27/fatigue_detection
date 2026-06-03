@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fatigue Detection System</title>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono:wght@400&family=Rajdhani:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #050a10;
+            --bg-secondary: #0f1419;
+            --accent: #00d4ff;
+            --accent-light: #00e6ff;
+            --success: #00ff41;
+            --warning: #ffd700;
+            --danger: #ff3333;
+            --text-primary: #e0e0e0;
+            --text-secondary: #a0a0a0;
+            --border-color: #1a2332;
+        }
+
+        body {
+            background: linear-gradient(135deg, var(--bg-primary) 0%, #0a1420 100%);
+            color: var(--text-primary);
+            font-family: 'Rajdhani', monospace;
+            overflow: hidden;
+            position: relative;
+            height: 100vh;
+        }
+
+        body::after {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: repeating-linear-gradient(
+                0deg,
+                rgba(0, 212, 255, 0.03) 0px,
+                rgba(0, 212, 255, 0.03) 1px,
+                transparent 1px,
+                transparent 2px
+            );
+            pointer-events: none;
+            z-index: 1;
+            animation: scanlines 8s linear infinite;
+        }
+
+        @keyframes scanlines {
+            0% { transform: translateY(0); }
+            100% { transform: translateY(10px); }
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            position: relative;
+            z-index: 0;
+        }
+
+        /* HEADER */
+        header {
+            background: linear-gradient(180deg, rgba(15, 20, 25, 0.95) 0%, rgba(15, 20, 25, 0.7) 100%);
+            border-bottom: 2px solid var(--border-color);
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 15px rgba(0, 212, 255, 0.1);
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .live-dot {
+            width: 12px;
+            height: 12px;
+            background: var(--success);
+            border-radius: 50%;
+            animation: pulse 1.5s ease-in-out infinite;
+            box-shadow: 0 0 10px var(--success);
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .header-title {
+            font-size: 24px;
+            font-weight: 600;
+            letter-spacing: 2px;
+            color: var(--accent);
+            font-family: 'Share Tech Mono', monospace;
+        }
+
+        .header-right {
+            font-size: 14px;
+            font-family: 'Share Tech Mono', monospace;
+            color: var(--text-secondary);
+        }
+
+        /* MAIN CONTENT */
+        .main-content {
+            display: flex;
+            flex: 1;
+            gap: 20px;
+            padding: 20px;
+            overflow: hidden;
+        }
+
+        /* VIDEO AREA */
+        .video-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .video-container {
+            position: relative;
+            flex: 1;
+            background: var(--bg-secondary);
+            border: 2px solid var(--border-color);
+            border-radius: 4px;
+            overflow: hidden;
+            box-shadow: inset 0 0 20px rgba(0, 212, 255, 0.1), 0 0 20px rgba(0, 0, 0, 0.5);
+        }
+
+        .video-container::before,
+        .video-container::after {
+            content: '';
+            position: absolute;
+            background: var(--accent);
+            z-index: 2;
+        }
+
+        /* Corner brackets */
+        .video-container::before {
+            width: 20px;
+            height: 20px;
+            top: 10px;
+            left: 10px;
+            border-top: 2px solid var(--accent);
+            border-left: 2px solid var(--accent);
+        }
+
+        .video-container::after {
+            width: 20px;
+            height: 20px;
+            bottom: 10px;
+            right: 10px;
+            border-bottom: 2px solid var(--accent);
+            border-right: 2px solid var(--accent);
+        }
+
+        .video-top-right {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            top: 10px;
+            right: 10px;
+            border-top: 2px solid var(--accent);
+            border-right: 2px solid var(--accent);
+            z-index: 2;
+        }
+
+        .video-bottom-left {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            bottom: 10px;
+            left: 10px;
+            border-bottom: 2px solid var(--accent);
+            border-left: 2px solid var(--accent);
+            z-index: 2;
+        }
+
+        .video-stream {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .alert-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: 4px solid var(--danger);
+            animation: flash-border 0.5s infinite;
+            z-index: 3;
+            display: none;
+        }
+
+        @keyframes flash-border {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .alert-overlay.active {
+            display: block;
+        }
+
+        /* SIDEBAR */
+        .sidebar {
+            width: 300px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            overflow-y: auto;
+        }
+
+        .sidebar-card {
+            background: linear-gradient(135deg, rgba(15, 20, 25, 0.8) 0%, rgba(10, 15, 20, 0.8) 100%);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 15px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .card-title {
+            font-size: 12px;
+            font-family: 'Share Tech Mono', monospace;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+        }
+
+        /* GAUGE */
+        .gauge-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            height: 150px;
+        }
+
+        svg.fatigue-gauge {
+            width: 100%;
+            height: 100%;
+        }
+
+        .gauge-text {
+            position: absolute;
+            text-align: center;
+        }
+
+        .gauge-value {
+            font-size: 28px;
+            font-weight: 600;
+            font-family: 'Share Tech Mono', monospace;
+        }
+
+        .gauge-label {
+            font-size: 10px;
+            color: var(--text-secondary);
+        }
+
+        /* EYE METRICS */
+        .metric-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            font-size: 12px;
+        }
+
+        .metric-label {
+            color: var(--text-secondary);
+            flex: 1;
+        }
+
+        .metric-value {
+            font-family: 'Share Tech Mono', monospace;
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 5px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--success), var(--warning), var(--danger));
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        /* BLINK HISTORY CHART */
+        .chart-container {
+            height: 80px;
+            display: flex;
+            align-items: flex-end;
+            gap: 2px;
+            justify-content: space-between;
+        }
+
+        .chart-bar {
+            flex: 1;
+            background: linear-gradient(180deg, var(--accent), var(--accent) 0%, rgba(0, 212, 255, 0.3));
+            border-radius: 2px;
+            min-height: 2px;
+            transition: height 0.3s ease;
+            border: 1px solid var(--border-color);
+        }
+
+        /* EVENT LOG */
+        .event-log {
+            height: 120px;
+            overflow-y: auto;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 3px;
+            padding: 8px;
+            font-size: 11px;
+            font-family: 'Share Tech Mono', monospace;
+        }
+
+        .event-entry {
+            padding: 5px;
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--border-color);
+            line-height: 1.3;
+        }
+
+        .event-entry:last-child {
+            border-bottom: none;
+        }
+
+        .event-time {
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        /* RESET BUTTON */
+        .reset-button {
+            background: linear-gradient(135deg, var(--danger), #cc0000);
+            border: 1px solid var(--danger);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-family: 'Rajdhani', monospace;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+        }
+
+        .reset-button:hover {
+            background: linear-gradient(135deg, #ff3333, #ff5555);
+            box-shadow: 0 0 15px rgba(255, 51, 51, 0.5);
+        }
+
+        .reset-button:active {
+            transform: scale(0.98);
+        }
+
+        /* BOTTOM STATUS BAR */
+        .status-bar {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            padding: 15px 20px;
+            background: linear-gradient(180deg, rgba(15, 20, 25, 0.9) 0%, rgba(10, 15, 20, 0.9) 100%);
+            border-top: 2px solid var(--border-color);
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        .status-card {
+            background: linear-gradient(135deg, rgba(0, 212, 255, 0.1) 0%, rgba(0, 212, 255, 0.05) 100%);
+            border: 1px solid var(--border-color);
+            border-radius: 3px;
+            padding: 12px;
+            text-align: center;
+        }
+
+        .status-card-label {
+            font-size: 10px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 5px;
+        }
+
+        .status-card-value {
+            font-size: 18px;
+            font-weight: 600;
+            font-family: 'Share Tech Mono', monospace;
+        }
+
+        /* STATUS TEXT COLORS */
+        .status-awake {
+            color: var(--success);
+        }
+
+        .status-tired {
+            color: var(--warning);
+        }
+
+        .status-drowsy {
+            color: var(--danger);
+        }
+
+        /* SCROLLBAR STYLING */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-primary);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--accent);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--accent-light);
+        }
+
+        /* RESPONSIVE */
+        @media (max-width: 1200px) {
+            .main-content {
+                flex-direction: column;
+            }
+
+            .sidebar {
+                width: 100%;
+                max-height: 300px;
+            }
+
+            .status-bar {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- HEADER -->
+        <header>
+            <div class="header-left">
+                <div class="live-dot"></div>
+                <div class="header-title">FATIGUE DETECTION SYSTEM</div>
+            </div>
+            <div class="header-right">
+                <span id="clock"></span>
+            </div>
+        </header>
+
+        <!-- MAIN CONTENT -->
+        <div class="main-content">
+            <!-- VIDEO SECTION -->
+            <div class="video-section">
+                <div class="video-container">
+                    <img class="video-stream" id="videoFeed" src="/video" alt="Video Feed">
+                    <div class="video-top-right"></div>
+                    <div class="video-bottom-left"></div>
+                    <div class="alert-overlay" id="alertOverlay"></div>
+                </div>
+            </div>
+
+            <!-- SIDEBAR -->
+            <div class="sidebar">
+                <!-- FATIGUE GAUGE -->
+                <div class="sidebar-card">
+                    <div class="card-title">Fatigue Level</div>
+                    <div class="gauge-container">
+                        <svg class="fatigue-gauge" viewBox="0 0 200 120" xmlns="http://www.w3.org/2000/svg">
+                            <!-- Background arc -->
+                            <path d="M 30 100 A 70 70 0 0 1 170 100" fill="none" stroke="#1a2332" stroke-width="8"/>
+                            <!-- Progress arc -->
+                            <path id="gaugeArc" d="M 30 100 A 70 70 0 0 1 170 100" fill="none" stroke="#00ff41" stroke-width="8" stroke-linecap="round"/>
+                        </svg>
+                        <div class="gauge-text">
+                            <div class="gauge-value" id="fatigueValue">0%</div>
+                            <div class="gauge-label">Score</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- EYE METRICS -->
+                <div class="sidebar-card">
+                    <div class="card-title">Eye Metrics</div>
+                    <div class="metric-row">
+                        <div class="metric-label">Face Detected</div>
+                        <div class="metric-value" id="faceDetected">---</div>
+                    </div>
+                    <div class="metric-row">
+                        <div class="metric-label">Closed Frames</div>
+                        <div class="metric-value" id="closedFrames">0</div>
+                    </div>
+                    <div class="metric-row">
+                        <div class="metric-label">EAR (Eye Aspect Ratio)</div>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="earBar" style="width: 50%;"></div>
+                    </div>
+                    <div style="text-align: right; font-size: 10px; color: var(--text-secondary); margin-top: 3px;">
+                        <span id="earValue">0.00</span> / 0.25
+                    </div>
+                </div>
+
+                <!-- BLINK HISTORY -->
+                <div class="sidebar-card">
+                    <div class="card-title">Blink History (20s)</div>
+                    <div class="chart-container" id="blinkChart">
+                        <!-- Bars will be added by JavaScript -->
+                    </div>
+                </div>
+
+                <!-- EVENT LOG -->
+                <div class="sidebar-card">
+                    <div class="card-title">Event Log</div>
+                    <div class="event-log" id="eventLog">
+                        <div class="event-entry"><span class="event-time">SYSTEM</span> Ready</div>
+                    </div>
+                </div>
+
+                <!-- RESET BUTTON -->
+                <button class="reset-button" id="resetBtn">Reset System</button>
+            </div>
+        </div>
+
+        <!-- BOTTOM STATUS BAR -->
+        <div class="status-bar">
+            <div class="status-card">
+                <div class="status-card-label">Status</div>
+                <div class="status-card-value status-awake" id="statusDisplay">AWAKE</div>
+            </div>
+            <div class="status-card">
+                <div class="status-card-label">EAR Value</div>
+                <div class="status-card-value" id="earDisplay">0.00</div>
+            </div>
+            <div class="status-card">
+                <div class="status-card-label">Blinks/min</div>
+                <div class="status-card-value" id="blinkRateDisplay">0.0</div>
+            </div>
+            <div class="status-card">
+                <div class="status-card-label">Total Blinks</div>
+                <div class="status-card-value" id="totalBlinksDisplay">0</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const POLL_INTERVAL = 500; // ms
+        const BLINK_HISTORY_BUCKETS = 20;
+        const EAR_THRESHOLD = 0.25;
+
+        let currentStats = {};
+        let blinkHistory = Array(BLINK_HISTORY_BUCKETS).fill(0);
+        let lastStatus = 'Awake';
+        let gaugeCircumference = 2 * Math.PI * 70; // SVG path has radius 70
+
+        // Initialize blink chart
+        function initBlinkChart() {
+            const chart = document.getElementById('blinkChart');
+            chart.innerHTML = '';
+            for (let i = 0; i < BLINK_HISTORY_BUCKETS; i++) {
+                const bar = document.createElement('div');
+                bar.className = 'chart-bar';
+                bar.style.height = '2px';
+                chart.appendChild(bar);
+            }
+        }
+
+        // Update gauge arc position based on fatigue score
+        function updateGauge(score) {
+            const arc = document.getElementById('gaugeArc');
+            const percentage = Math.min(score, 100) / 100;
+            const offset = gaugeCircumference * (1 - percentage);
+
+            // Update color based on score
+            let color = '#00ff41'; // Green (Awake)
+            if (score >= 70) {
+                color = '#ff3333'; // Red (Drowsy)
+            } else if (score >= 40) {
+                color = '#ffd700'; // Yellow (Tired)
+            }
+
+            arc.style.stroke = color;
+            arc.style.strokeDasharray = `${gaugeCircumference}`;
+            arc.style.strokeDashoffset = `${offset}`;
+        }
+
+        // Update EAR progress bar
+        function updateEARBar(ear) {
+            const bar = document.getElementById('earBar');
+            const percentage = Math.min(ear / EAR_THRESHOLD, 1) * 100;
+            
+            let color = '#00ff41'; // Green
+            if (percentage > 75) {
+                color = '#ff3333'; // Red
+            } else if (percentage > 50) {
+                color = '#ffd700'; // Yellow
+            }
+
+            bar.style.width = percentage + '%';
+            bar.style.background = color;
+        }
+
+        // Update blink history chart
+        function updateBlinkChart(newBlinkRate) {
+            blinkHistory.shift();
+            blinkHistory.push(newBlinkRate);
+
+            const maxBlinks = Math.max(...blinkHistory, 20); // Min scale of 20
+            const bars = document.querySelectorAll('.chart-bar');
+
+            bars.forEach((bar, idx) => {
+                const height = (blinkHistory[idx] / maxBlinks) * 100;
+                bar.style.height = Math.max(height, 2) + '%';
+            });
+        }
+
+        // Add event log entry
+        function addEventLogEntry(status) {
+            const log = document.getElementById('eventLog');
+            const now = new Date();
+            const time = now.toLocaleTimeString();
+            
+            const entry = document.createElement('div');
+            entry.className = 'event-entry';
+            entry.innerHTML = `<span class="event-time">${time}</span> Status: ${status}`;
+            
+            log.insertBefore(entry, log.firstChild);
+
+            // Keep only last 10 entries
+            while (log.children.length > 10) {
+                log.removeChild(log.lastChild);
+            }
+        }
+
+        // Poll stats from server
+        async function pollStats() {
+            try {
+                const response = await fetch('/stats');
+                const stats = await response.json();
+                currentStats = stats;
+
+                // Update all UI elements
+                updateUI();
+            } catch (error) {
+                console.error('Failed to fetch stats:', error);
+            }
+        }
+
+        // Update all UI elements
+        function updateUI() {
+            const { status, fatigue_score, ear, blink_rate, blink_count, closed_frames, face_detected } = currentStats;
+
+            // Update gauge
+            updateGauge(fatigue_score);
+            document.getElementById('fatigueValue').textContent = Math.round(fatigue_score) + '%';
+
+            // Update EAR
+            updateEARBar(ear);
+            document.getElementById('earValue').textContent = ear.toFixed(2);
+            document.getElementById('earDisplay').textContent = ear.toFixed(2);
+
+            // Update blink metrics
+            updateBlinkChart(blink_rate);
+            document.getElementById('blinkRateDisplay').textContent = blink_rate.toFixed(1);
+            document.getElementById('totalBlinksDisplay').textContent = blink_count;
+            document.getElementById('closedFrames').textContent = closed_frames;
+
+            // Update face detection
+            document.getElementById('faceDetected').textContent = face_detected ? '✓ Yes' : '✗ No';
+
+            // Update status display
+            if (status !== lastStatus) {
+                lastStatus = status;
+                addEventLogEntry(status);
+            }
+
+            const statusDisplay = document.getElementById('statusDisplay');
+            statusDisplay.textContent = status;
+            statusDisplay.className = 'status-card-value';
+
+            if (status === 'Awake') {
+                statusDisplay.classList.add('status-awake');
+            } else if (status === 'Tired') {
+                statusDisplay.classList.add('status-tired');
+            } else {
+                statusDisplay.classList.add('status-drowsy');
+            }
+
+            // Update alert overlay
+            const alertOverlay = document.getElementById('alertOverlay');
+            if (status === 'DROWSY') {
+                alertOverlay.classList.add('active');
+            } else {
+                alertOverlay.classList.remove('active');
+            }
+        }
+
+        // Update clock
+        function updateClock() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('en-US', { 
+                hour: '2-digit', 
+                minute: '2-digit', 
+                second: '2-digit'
+            });
+            document.getElementById('clock').textContent = timeString;
+        }
+
+        // Reset system
+        document.getElementById('resetBtn').addEventListener('click', async () => {
+            try {
+                const response = await fetch('/reset', { method: 'POST' });
+                const result = await response.json();
+                
+                // Reset local state
+                blinkHistory = Array(BLINK_HISTORY_BUCKETS).fill(0);
+                lastStatus = 'Awake';
+                
+                // Clear event log
+                const log = document.getElementById('eventLog');
+                log.innerHTML = '<div class="event-entry"><span class="event-time">SYSTEM</span> Reset</div>';
+                
+                console.log('System reset:', result);
+            } catch (error) {
+                console.error('Failed to reset:', error);
+            }
+        });
+
+        // Initialize
+        window.addEventListener('DOMContentLoaded', () => {
+            initBlinkChart();
+            updateClock();
+            setInterval(updateClock, 1000);
+            setInterval(pollStats, POLL_INTERVAL);
+            
+            // Initial poll
+            pollStats();
+        });
+    </script>
+</body>
+</html>

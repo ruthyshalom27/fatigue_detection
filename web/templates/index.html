@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Fatigue Detection System - Web</title>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header>
+  <div class="logo-icon">👁</div>
+  <div>
+    <h1>FATIGUE DETECTION SYSTEM</h1>
+    <p>Eye Aspect Ratio · Face Detection · Real-Time Analysis</p>
+  </div>
+  <div class="header-right">
+    <div id="live-dot"></div>
+    <span id="clock" style="font-size:.8rem;color:var(--dim);">--:--:--</span>
+  </div>
+</header>
+
+<main>
+  <!-- VIDEO AREA -->
+  <div class="video-wrap">
+    <div class="cam-frame">
+      <img src="http://localhost:5000/api/video" alt="Live camera feed" id="video-feed"/>
+      <span class="corner-bl"></span>
+      <span class="corner-br"></span>
+      <div class="scan-line"></div>
+      <div id="alert-overlay">
+        <span class="alert-text">⚠ DROWSINESS DETECTED</span>
+      </div>
+    </div>
+
+    <!-- bottom quick stats -->
+    <div class="status-bar">
+      <div class="status-card">
+        <span class="label">Status</span>
+        <span class="value green" id="s-status">--</span>
+      </div>
+      <div class="status-card">
+        <span class="label">EAR Value</span>
+        <span class="value" id="s-ear">--</span>
+      </div>
+      <div class="status-card">
+        <span class="label">Blinks/min</span>
+        <span class="value" id="s-bpm">--</span>
+      </div>
+      <div class="status-card">
+        <span class="label">Total Blinks</span>
+        <span class="value" id="s-blinks">--</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- SIDEBAR -->
+  <aside>
+
+    <!-- Fatigue Score Gauge -->
+    <div class="side-section">
+      <h2>Fatigue Score</h2>
+      <div class="gauge-wrap">
+        <div class="gauge-ring">
+          <svg viewBox="0 0 140 140" width="140" height="140">
+            <circle class="track" cx="70" cy="70" r="60"/>
+            <circle class="fill"  cx="70" cy="70" r="60" id="gauge-fill"/>
+          </svg>
+          <div class="gauge-center">
+            <span class="pct" id="gauge-pct">--</span>
+            <span class="lbl">FATIGUE</span>
+          </div>
+        </div>
+        <span class="gauge-status" id="gauge-status-text">● LOADING...</span>
+      </div>
+    </div>
+
+    <!-- Eye Metrics -->
+    <div class="side-section">
+      <h2>Eye Metrics</h2>
+      <div class="metric-row">
+        <span class="k">Face Detected</span>
+        <span class="v" id="m-face">--</span>
+      </div>
+      <div class="metric-row">
+        <span class="k">Closed Frames</span>
+        <span class="v" id="m-cf">--</span>
+      </div>
+      <div class="metric-row">
+        <span class="k">EAR Threshold</span>
+        <span class="v">0.250</span>
+      </div>
+      <div class="ear-bar-wrap">
+        <div class="ear-bar-bg">
+          <div class="ear-bar-fill" id="ear-bar" style="width:0%"></div>
+        </div>
+        <div class="ear-label">
+          <span>0.0 (closed)</span>
+          <span id="ear-bar-val">--</span>
+          <span>0.45+ (open)</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Blink History -->
+    <div class="side-section">
+      <h2>Blink History (last 20s)</h2>
+      <div id="blink-chart"></div>
+    </div>
+
+    <!-- Event Log -->
+    <div class="side-section">
+      <h2>Event Log</h2>
+      <div id="event-log"></div>
+    </div>
+
+    <!-- Connection Status -->
+    <div class="side-section">
+      <div class="status-card" style="margin-bottom: 10px;">
+        <span class="label">API Status</span>
+        <span class="value" id="api-status">--</span>
+      </div>
+    </div>
+
+    <!-- How it works -->
+    <div class="side-section">
+      <h2>How It Works</h2>
+      <div class="info-list">
+        <div class="info-item">
+          <span class="dot"></span>
+          <p><strong>EAR (Eye Aspect Ratio)</strong> — ratio of eye height to width. Drops when eyes close.</p>
+        </div>
+        <div class="info-item">
+          <span class="dot"></span>
+          <p><strong>EAR &lt; 0.25</strong> for 20+ frames signals prolonged closure → drowsiness.</p>
+        </div>
+        <div class="info-item">
+          <span class="dot"></span>
+          <p><strong>Blink rate &lt; 15/min</strong> also raises fatigue score.</p>
+        </div>
+      </div>
+    </div>
+
+  </aside>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>
